@@ -13,5 +13,5 @@ fn main() {
     //chunk.write_to_chunk(cons, 123);
     //chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 123);
 
-    chunk.dump();
+    chunk.disassemble();
 }

@@ -65,8 +65,8 @@ impl Chunk {
         self.values.push(value);
         (self.values.len() - 1) as u8 //return the index of the added constant
     }
- 
-    pub fn dump(&self) {
+
+    pub fn disassemble(&self) {
         println!("== CHUNK DUMP ==");
         println!("code     : {:?}", self.code);
         println!("lines    : {:?}", self.lines);
