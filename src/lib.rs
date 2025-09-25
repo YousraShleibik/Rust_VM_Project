@@ -38,3 +38,38 @@ pub fn u8_to_opcode(b: u8) -> Option<OpCode> {
         _ => return None,
     })
 }
+
+pub struct Chunk {
+    //constants: Vec<Value>, //constants used in the bytecode
+    code: Vec<u8>,       //bytecode
+    lines: Vec<u8>,  //line numbers for each bytecode instruction
+    values: Vec<Value>, //constants used in the bytecode
+}
+
+impl Chunk {
+    pub fn init_chunk() -> Self {
+        Chunk {
+            //constants: Vec::new(),
+            code: Vec::new(),
+            lines: Vec::new(),
+            values: Vec::new(),
+        }
+    }
+
+    pub fn write_to_chunk(&mut self, byte: u8, line: u8) {
+        self.code.push(byte);
+        self.lines.push(line);
+    }
+
+    pub fn add_constant(&mut self, value: Value) -> u8 {
+        self.values.push(value);
+        (self.values.len() - 1) as u8 //return the index of the added constant
+    }
+ 
+    pub fn dump(&self) {
+        println!("== CHUNK DUMP ==");
+        println!("code     : {:?}", self.code);
+        println!("lines    : {:?}", self.lines);
+        println!("constants: {:?}", self.values);
+    }
+}
