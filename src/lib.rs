@@ -72,4 +72,54 @@ impl Chunk {
         println!("lines    : {:?}", self.lines);
         println!("constants: {:?}", self.values);
     }
+
+    pub fn disassemble_instruction(&self, offset) -> usize {
+        print!("{:04} ", offset); // show instruction index
+        let instruction = self.code[offset];
+
+        match u8_to_opcode(instruction) {
+            Some(OpCode::OpReturn) => {
+                println!("OP_RETURN");
+                offset + 1
+            }
+            Some(OpCode::OpConstant) => {
+                // Next byte is the constant index
+                if offset + 1 < self.code.len() {
+                    let constant_index = self.code[offset + 1];
+                    let value = self.values[constant_index as usize];
+                    println!("OP_CONSTANT {} (value = {})", constant_index, value);
+                    offset + 2
+                } else {
+                    println!("OP_CONSTANT <missing operand>");
+                    offset + 1
+                }
+            }
+            Some(OpCode::OpNegate) => {
+                println!("OP_NEGATE");
+                offset + 1
+            }
+            Some(OpCode::OpAdd) => {
+                println!("OP_ADD");
+                offset + 1
+            }
+            Some(OpCode::OpSubtract) => {
+                println!("OP_SUBTRACT");
+                offset + 1
+            }
+            Some(OpCode::OpMultiply) => {
+                println!("OP_MULTIPLY");
+                offset + 1
+            }
+            Some(OpCode::OpDivide) => {
+                println!("OP_DIVIDE");
+                offset + 1
+            }
+            None => {
+                println!("Unknown opcode {}", instruction);
+                offset + 1
+            }
+        }
+    }
 }
+
+
