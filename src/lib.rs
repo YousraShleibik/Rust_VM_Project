@@ -1,6 +1,7 @@
 pub type Value = u8;
 
 //operation codes
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
     OpReturn, 
     OpConstant, 
@@ -185,5 +186,106 @@ impl Chunk {
         //}
     //}
 
+#[cfg(test)]
+mod tests {
+    use super::*;
 
+    #[test]
+    fn opcode_mappings_roundtrip() {
+        let table = [
+            (OpCode::OpReturn,   0x00),
+            (OpCode::OpConstant, 0x01),
+            (OpCode::OpNegate,   0x02),
+            (OpCode::OpAdd,      0x03),
+            (OpCode::OpSubtract, 0x04),
+            (OpCode::OpMultiply, 0x05),
+            (OpCode::OpDivide,   0x06),
+        ];
+
+        for (op, byte) in table {
+            assert_eq!(opcode_to_u8(op), byte, "opcode_to_u8 mismatch for {op:?}");
+            assert_eq!(u8_to_opcode(byte), Some(op), "u8_to_opcode mismatch for 0x{byte:02X}");
+        }
+
+        // Unknown opcode should map to None
+        assert_eq!(u8_to_opcode(0xFF), None);
+    }
+
+    #[test]
+    fn chunk_write_and_constants_basics() {
+        let mut c = Chunk::init_chunk();
+
+        // Add a couple constants; verify indices and stored values.
+        let i0 = c.add_constant(15);
+        let i1 = c.add_constant(42);
+        assert_eq!(i0, 0);
+        assert_eq!(i1, 1);
+        assert_eq!(c.values[i0 as usize], 15);
+        assert_eq!(c.values[i1 as usize], 42);
+
+        // Write opcode + operand pairs, then a Return.
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 10);
+        c.write_to_chunk(i0, 10);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 11);
+        c.write_to_chunk(i1, 11);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 12);
+
+        // code and lines should be the same length
+        assert_eq!(c.code.len(), c.lines.len());
+
+        // Lines should match the writes above (per byte).
+        assert_eq!(c.lines, vec![10, 10, 11, 11, 12]);
+
+        // Opcodes should be in expected positions.
+        assert_eq!(u8_to_opcode(c.code[0]), Some(OpCode::OpConstant));
+        assert_eq!(c.code[1], i0);
+        assert_eq!(u8_to_opcode(c.code[2]), Some(OpCode::OpConstant));
+        assert_eq!(c.code[3], i1);
+        assert_eq!(u8_to_opcode(c.code[4]), Some(OpCode::OpReturn));
+    }
+
+    #[test]
+    fn disassemble_instruction_offsets_and_unknown() {
+        let mut c = Chunk::init_chunk();
+
+        // Build: OpConstant idx0 | OpConstant idx1 | OpAdd | 0xFF(unknown) | OpReturn
+        let i0 = c.add_constant(10);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 1);
+        c.write_to_chunk(i0, 1);
+
+        let i1 = c.add_constant(20);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 2);
+        c.write_to_chunk(i1, 2);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), 3);
+
+        // Unknown opcode (should still advance by 1)
+        c.write_to_chunk(0xFF, 4);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 5);
+
+        // Offsets should advance: 0->2 (constant), 2->4 (constant), 4->5 (add), 5->6 (unknown), 6->7 (return)
+        let mut off = 0usize;
+        off = c.disassemble_instruction(off);
+        assert_eq!(off, 2);
+
+        off = c.disassemble_instruction(off);
+        assert_eq!(off, 4);
+
+        off = c.disassemble_instruction(off);
+        assert_eq!(off, 5);
+
+        off = c.disassemble_instruction(off);
+        assert_eq!(off, 6);
+
+        off = c.disassemble_instruction(off);
+        assert_eq!(off, 7);
+
+        // Sanity check lines length matches code length.
+        assert_eq!(c.code.len(), c.lines.len());
+        assert_eq!(c.lines, vec![1, 1, 2, 2, 3, 4, 5]);
+    }
+}
 

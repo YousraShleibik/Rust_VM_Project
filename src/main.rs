@@ -5,7 +5,12 @@ fn main() {
     println!("Hello, world!");
 
     println!("creating a bytecode chunk");
-    let  mut chunk: Chunk = Chunk::init_chunk();
+    let mut chunk = Chunk::init_chunk();
+
+    let con1 = chunk.add_constant(15);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 155);
+    chunk.write_to_chunk(con1, 155);
+    
 
 
     let cons: u8 = chunk.add_constant(42);
@@ -21,10 +26,7 @@ fn main() {
 
 
 
-    chunk.disassemble("test chunk");
-    
+     chunk.disassemble("demo chunk");
 
-    //let val = chunk.disassemble_instruction(0);
 
-    //println!("next instruction offset: {}", val);
 }
