@@ -10,8 +10,21 @@ fn main() {
 
     let cons: u8 = chunk.add_constant(42);
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 123);
-    //chunk.write_to_chunk(cons, 123);
+    chunk.write_to_chunk(cons, 123);
     //chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 123);
 
-    chunk.disassemble();
+    let cons2: u8 = chunk.add_constant(45);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 124);
+    chunk.write_to_chunk(cons2, 124);
+    //chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 124);
+   
+
+
+
+    chunk.disassemble("test chunk");
+    
+
+    //let val = chunk.disassemble_instruction(0);
+
+    //println!("next instruction offset: {}", val);
 }

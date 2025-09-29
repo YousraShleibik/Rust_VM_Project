@@ -64,62 +64,126 @@ impl Chunk {
     pub fn add_constant(&mut self, value: Value) -> u8 {
         self.values.push(value);
         (self.values.len() - 1) as u8 //return the index of the added constant
+        
     }
 
-    pub fn disassemble(&self) {
-        println!("== CHUNK DUMP ==");
-        println!("code     : {:?}", self.code);
-        println!("lines    : {:?}", self.lines);
-        println!("constants: {:?}", self.values);
+
+
+    pub fn disassemble(&self, name: &str) {
+        println!("== {} ==", name);
+        let mut offset = 0usize;
+        while offset < self.code.len() {
+            offset = self.disassemble_instruction(offset);
+        }
     }
+    pub fn disassemble_instruction(&self, offset: usize) -> usize {
+        use std::fmt::Write as _;
+        let line = self.lines.get(offset).copied().unwrap_or(0);
+        let mut out = String::new();
 
-    pub fn disassemble_instruction(&self, offset) -> usize {
-        print!("{:04} ", offset); // show instruction index
-        let instruction = self.code[offset];
-
-        match u8_to_opcode(instruction) {
-            Some(OpCode::OpReturn) => {
-                println!("OP_RETURN");
-                offset + 1
-            }
-            Some(OpCode::OpConstant) => {
-                // Next byte is the constant index
-                if offset + 1 < self.code.len() {
-                    let constant_index = self.code[offset + 1];
-                    let value = self.values[constant_index as usize];
-                    println!("OP_CONSTANT {} (value = {})", constant_index, value);
+        let byte = self.code[offset];
+        let next = if let Some(op) = u8_to_opcode(byte) {
+            match op {
+                OpCode::OpReturn => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpReturn");
+                    offset + 1
+                }
+                OpCode::OpConstant => {
+                    // format: [OpConstant][const_index]
+                    let idx = self.code.get(offset + 1).copied().unwrap_or(0);
+                    let value = self.values.get(idx as usize).copied();
+                    let _ = write!(
+                        out,
+                        "{offset:04}  line {:>4}  {:<12} idx={:<3} value={:?}",
+                        line, "OpConstant", idx, value
+                    );
                     offset + 2
-                } else {
-                    println!("OP_CONSTANT <missing operand>");
+                }
+                OpCode::OpNegate => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpNegate");
+                    offset + 1
+                }
+                OpCode::OpAdd => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpAdd");
+                    offset + 1
+                }
+                OpCode::OpSubtract => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpSubtract");
+                    offset + 1
+                }
+                OpCode::OpMultiply => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpMultiply");
+                    offset + 1
+                }
+                OpCode::OpDivide => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpDivide");
                     offset + 1
                 }
             }
-            Some(OpCode::OpNegate) => {
-                println!("OP_NEGATE");
-                offset + 1
-            }
-            Some(OpCode::OpAdd) => {
-                println!("OP_ADD");
-                offset + 1
-            }
-            Some(OpCode::OpSubtract) => {
-                println!("OP_SUBTRACT");
-                offset + 1
-            }
-            Some(OpCode::OpMultiply) => {
-                println!("OP_MULTIPLY");
-                offset + 1
-            }
-            Some(OpCode::OpDivide) => {
-                println!("OP_DIVIDE");
-                offset + 1
-            }
-            None => {
-                println!("Unknown opcode {}", instruction);
-                offset + 1
-            }
-        }
+        } else {
+            let _ = write!(out, "{offset:04}  line {:>4}  {:<12} 0x{:02X} (unknown)", line, "????", byte);
+            offset + 1
+        };
+
+        println!("{out}");
+        next
     }
 }
+
+    //pub fn disassemble(&self) {
+       // println!("== CHUNK DUMP ==");
+        //println!("code     : {:?}", self.code);
+        //println!("lines    : {:?}", self.lines);
+        //println!("constants: {:?}", self.values);
+    //}
+
+    //pub fn disassemble_instruction(&self, offset: usize) -> usize {
+      //  print!("{:04} ", offset); // show instruction index
+      //  let instruction = self.code[offset];
+
+        // match u8_to_opcode(instruction) {
+        //    Some(OpCode::OpReturn) => {
+        //        println!("OP_RETURN");
+        //        offset + 1
+        //    }
+        //    Some(OpCode::OpConstant) => {
+        //        // Next byte is the constant index
+        //        if offset + 1 < self.code.len() {
+        //            let constant_index = self.code[offset + 1];
+        //            let value = self.values[constant_index as usize];
+        //            println!("OP_CONSTANT {} (value = {})", constant_index, value);
+        //            offset + 2
+        //        } else {
+        //            println!("OP_CONSTANT <missing operand>");
+        //            offset + 1
+        //        }
+        //    }
+        //    Some(OpCode::OpNegate) => {
+        //        println!("OP_NEGATE");
+        //        offset + 1
+        //    }
+        //    Some(OpCode::OpAdd) => {
+        //        println!("OP_ADD");
+        //        offset + 1
+        //    }
+        //    Some(OpCode::OpSubtract) => {
+        //        println!("OP_SUBTRACT");
+        //        offset + 1
+        //    }
+        //    Some(OpCode::OpMultiply) => {
+        //        println!("OP_MULTIPLY");
+        //        offset + 1
+        //    }
+        //    Some(OpCode::OpDivide) => {
+        //        println!("OP_DIVIDE");
+        //        offset + 1
+        //    }
+        //    None => {
+        //        println!("Unknown opcode {}", instruction);
+        //        offset + 1
+        //    }
+        //}
+    //}
+
 
 
