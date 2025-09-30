@@ -131,6 +131,12 @@ impl Chunk {
     }
 }
 
+pub struct VirtualMachine {
+    pub chunk: Option<Chunk>,
+    pub ip: usize,
+    pub stack: Vec<Value>,
+}
+
     //pub fn disassemble(&self) {
        // println!("== CHUNK DUMP ==");
         //println!("code     : {:?}", self.code);
@@ -288,4 +294,6 @@ mod tests {
         assert_eq!(c.lines, vec![1, 1, 2, 2, 3, 4, 5]);
     }
 }
+
+
 
