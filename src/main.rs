@@ -1,4 +1,6 @@
 use rust_vm_project::{Chunk, OpCode, opcode_to_u8};
+use rust_vm_project::{VirtualMachine, Value};
+use rust_vm_project::{InterpretResult};
 
 fn main() {
 
@@ -23,10 +25,27 @@ fn main() {
     chunk.write_to_chunk(cons2, 124);
     //chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 124);
    
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpAdd), 200);       // 15 + 42
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 201);  // push 45
+    chunk.write_to_chunk(cons2, 201);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpMultiply), 202);  // (15+42)*45
+
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 250);
 
 
 
      chunk.disassemble("demo chunk");
 
+    let mut vm = VirtualMachine::init_machine();
+    println!("chunk: {:?}", vm.chunk);
+    println!("ip: {}", vm.ip);
+    println!("stack: {:?}", vm.stack);
+
+
+    let mut vm = VirtualMachine::init_machine();
+    let result = vm.interpret(chunk);
+    println!("Interpret result: {:?}", result);
+    println!("Final stack: {:?}", vm.stack);
 
 }
+
