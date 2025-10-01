@@ -10,6 +10,7 @@ pub enum OpCode {
     OpSubtract, 
     OpMultiply, 
     OpDivide,
+    OpModulo,
 
 }
 
@@ -23,6 +24,7 @@ pub fn opcode_to_u8(op: OpCode) -> u8 {
         OpCode::OpSubtract => 0x04,
         OpCode::OpMultiply => 0x05,
         OpCode::OpDivide   => 0x06,
+        OpCode::OpModulo   => 0x07,
     }
 }
 
@@ -36,10 +38,12 @@ pub fn u8_to_opcode(b: u8) -> Option<OpCode> {
         0x04 => OpCode::OpSubtract,
         0x05 => OpCode::OpMultiply,
         0x06 => OpCode::OpDivide,
+        0x07 => OpCode::OpModulo,
         _ => return None,
     })
 }
 
+#[derive(Debug)]
 pub struct Chunk {
     //constants: Vec<Value>, //constants used in the bytecode
     code: Vec<u8>,       //bytecode
@@ -120,6 +124,11 @@ impl Chunk {
                     let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpDivide");
                     offset + 1
                 }
+                OpCode::OpModulo => {
+                    let _ = write!(out, "{offset:04}  line {:>4}  {:<12}", line, "OpModulo");
+                offset + 1
+                }
+
             }
         } else {
             let _ = write!(out, "{offset:04}  line {:>4}  {:<12} 0x{:02X} (unknown)", line, "????", byte);
@@ -136,6 +145,125 @@ pub struct VirtualMachine {
     pub ip: usize,
     pub stack: Vec<Value>,
 }
+
+impl VirtualMachine {
+    pub fn init_machine() -> Self {
+        VirtualMachine {
+            chunk: None,
+            ip: 0,
+            stack: Vec::new(),
+        }
+    }
+
+    pub fn interpret(&mut self, chunk: Chunk) -> InterpretResult {
+        // load the chunk into the VM
+        self.chunk = Some(chunk);
+        // reset instruction pointer
+        self.ip = 0;
+        // call run
+        self.run()
+    }
+    
+    pub fn run(&mut self) -> InterpretResult {
+    loop {
+        let chunk = match &self.chunk {
+            Some(c) => c,
+            None => return InterpretResult::InterpretRuntimeError,
+        };
+
+        if self.ip >= chunk.code.len() {
+            return InterpretResult::InterpretRuntimeError;
+        }
+
+        let instruction = chunk.code[self.ip];
+        self.ip += 1;
+
+        match u8_to_opcode(instruction) {
+            Some(OpCode::OpReturn) => {
+                // Stop execution
+                return InterpretResult::InterpretSuccess;
+            }
+            Some(OpCode::OpConstant) => {
+                if self.ip >= chunk.code.len() {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+                let constant_index = chunk.code[self.ip] as usize;
+                self.ip += 1;
+                if let Some(value) = chunk.values.get(constant_index) {
+                    self.push(*value);
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            Some(OpCode::OpNegate) => {
+                if let Some(v) = self.pop() {
+                    self.push(v.wrapping_neg()); // negate u8 safely
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            Some(OpCode::OpAdd) => {
+                if let (Some(b), Some(a)) = (self.pop(), self.pop()) {
+                    self.push(a.wrapping_add(b));
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            Some(OpCode::OpSubtract) => {
+                if let (Some(b), Some(a)) = (self.pop(), self.pop()) {
+                    self.push(a.wrapping_sub(b));
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            Some(OpCode::OpMultiply) => {
+                if let (Some(b), Some(a)) = (self.pop(), self.pop()) {
+                    self.push(a.wrapping_mul(b));
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            Some(OpCode::OpDivide) => {
+                if let (Some(b), Some(a)) = (self.pop(), self.pop()) {
+                    if b == 0 {
+                        return InterpretResult::InterpretRuntimeError;
+                    }
+                    self.push(a / b);
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            Some(OpCode::OpModulo) => {
+                if let (Some(b), Some(a)) = (self.pop(), self.pop()) {
+                    if b == 0 {
+                        return InterpretResult::InterpretRuntimeError;
+                    }
+                    self.push(a % b);
+                } else {
+                    return InterpretResult::InterpretRuntimeError;
+                }
+            }
+            None => return InterpretResult::InterpretRuntimeError,
+        }
+    }
+} 
+
+    fn push(&mut self, value: Value) {
+        self.stack.push(value);
+    }
+
+    fn pop(&mut self) -> Option<Value> {
+        self.stack.pop()
+    }    
+}
+
+#[derive(Debug, PartialEq)]
+pub enum InterpretResult {
+    InterpretSuccess,
+    InterpretCompileError,
+    InterpretRuntimeError,
+}
+
 
     //pub fn disassemble(&self) {
        // println!("== CHUNK DUMP ==");
@@ -294,6 +422,3 @@ mod tests {
         assert_eq!(c.lines, vec![1, 1, 2, 2, 3, 4, 5]);
     }
 }
-
-
-
