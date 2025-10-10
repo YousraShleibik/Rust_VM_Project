@@ -265,60 +265,7 @@ pub enum InterpretResult {
 }
 
 
-    //pub fn disassemble(&self) {
-       // println!("== CHUNK DUMP ==");
-        //println!("code     : {:?}", self.code);
-        //println!("lines    : {:?}", self.lines);
-        //println!("constants: {:?}", self.values);
-    //}
-
-    //pub fn disassemble_instruction(&self, offset: usize) -> usize {
-      //  print!("{:04} ", offset); // show instruction index
-      //  let instruction = self.code[offset];
-
-        // match u8_to_opcode(instruction) {
-        //    Some(OpCode::OpReturn) => {
-        //        println!("OP_RETURN");
-        //        offset + 1
-        //    }
-        //    Some(OpCode::OpConstant) => {
-        //        // Next byte is the constant index
-        //        if offset + 1 < self.code.len() {
-        //            let constant_index = self.code[offset + 1];
-        //            let value = self.values[constant_index as usize];
-        //            println!("OP_CONSTANT {} (value = {})", constant_index, value);
-        //            offset + 2
-        //        } else {
-        //            println!("OP_CONSTANT <missing operand>");
-        //            offset + 1
-        //        }
-        //    }
-        //    Some(OpCode::OpNegate) => {
-        //        println!("OP_NEGATE");
-        //        offset + 1
-        //    }
-        //    Some(OpCode::OpAdd) => {
-        //        println!("OP_ADD");
-        //        offset + 1
-        //    }
-        //    Some(OpCode::OpSubtract) => {
-        //        println!("OP_SUBTRACT");
-        //        offset + 1
-        //    }
-        //    Some(OpCode::OpMultiply) => {
-        //        println!("OP_MULTIPLY");
-        //        offset + 1
-        //    }
-        //    Some(OpCode::OpDivide) => {
-        //        println!("OP_DIVIDE");
-        //        offset + 1
-        //    }
-        //    None => {
-        //        println!("Unknown opcode {}", instruction);
-        //        offset + 1
-        //    }
-        //}
-    //}
+    
 
 #[cfg(test)]
 mod tests {
@@ -334,6 +281,7 @@ mod tests {
             (OpCode::OpSubtract, 0x04),
             (OpCode::OpMultiply, 0x05),
             (OpCode::OpDivide,   0x06),
+            (OpCode::OpModulo,   0x07),
         ];
 
         for (op, byte) in table {
@@ -421,4 +369,78 @@ mod tests {
         assert_eq!(c.code.len(), c.lines.len());
         assert_eq!(c.lines, vec![1, 1, 2, 2, 3, 4, 5]);
     }
+    #[test]
+fn vm_exec_simple_arith() {
+    // ((((8 + 2) - 3) * 4) / 5) % 3 -> 2; negate -> -2
+    let mut c = Chunk::init_chunk();
+    let l = 1;
+
+    let i8 = c.add_constant(8);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(i8, l);
+
+    let i2 = c.add_constant(2);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(i2, l);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
+
+    let i3 = c.add_constant(3);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(i3, l);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpSubtract), l);
+
+    let i4 = c.add_constant(4);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(i4, l);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpMultiply), l);
+
+    let i5 = c.add_constant(5);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(i5, l);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpDivide), l);
+
+    let imod = c.add_constant(3);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(imod, l);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpModulo), l);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpNegate), l);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+    let mut vm = VirtualMachine::init_machine();
+    let res = vm.interpret(c);
+    assert_eq!(res, InterpretResult::InterpretSuccess);
+    assert_eq!(vm.stack.last().copied(), Some(-2));
+}
+
+#[test]
+fn vm_divide_by_zero_runtime_error() {
+    let mut c = Chunk::init_chunk();
+    let l = 1;
+    let a = c.add_constant(10);
+    let b = c.add_constant(0);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(a, l);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(b, l);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpDivide), l);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+    let mut vm = VirtualMachine::init_machine();
+    let res = vm.interpret(c);
+    assert_eq!(res, InterpretResult::InterpretRuntimeError);
+}
+
+#[test]
+fn vm_stack_underflow_runtime_error() {
+    // Attempt to add with only one value on the stack.
+    let mut c = Chunk::init_chunk();
+    let l = 1;
+    let a = c.add_constant(5);
+
+    c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(a, l);
+    c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);  // needs two values
+    c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+    let mut vm = VirtualMachine::init_machine();
+    let res = vm.interpret(c);
+    assert_eq!(res, InterpretResult::InterpretRuntimeError);
+}
 }
