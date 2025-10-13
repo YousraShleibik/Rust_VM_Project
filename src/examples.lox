@@ -1,0 +1,4 @@
+// sample
+var x = 123.45;
+print "hi";
+if (x >= 100) { x = x + 1; }
