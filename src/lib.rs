@@ -1,3 +1,5 @@
+pub mod scanner;
+pub use scanner::{Scanner, Token, TokenType};
 pub type Value = u8;
 
 //operation codes
@@ -254,7 +256,40 @@ impl VirtualMachine {
 
     fn pop(&mut self) -> Option<Value> {
         self.stack.pop()
-    }    
+    }
+
+    pub fn interpret_source(&mut self, source_code: &str) -> InterpretResult { 
+    self.compile(source_code);                                             
+    InterpretResult::InterpretSuccess                                      
+    }
+    
+    pub fn compile(&mut self, source_code: &str) {         
+    use crate::{Scanner, TokenType};                   
+
+    let mut scanner = Scanner::init_scanner(source_code); 
+    let mut line: usize = 0;                            
+
+    loop {                                              
+        let token = scanner.scan_token();               
+
+        if token.line != line {                         
+            print!("{:4} ", token.line);                
+            line = token.line;                          
+        } else {                                        
+            print!("   | ");                            
+        }                                               
+
+        let text = String::from_utf8(token.value.clone()).ok(); 
+        let len = token.value.len();                             
+        println!("{:?} {}, {:?}", token.token_type, len, text);  
+
+        match token.token_type {                      
+            TokenType::TokenEof => break,             
+            _ => {}                                   
+        }                                             
+    }                                                 
+    } 
+        
 }
 
 #[derive(Debug, PartialEq)]
