@@ -1,6 +1,8 @@
 use rust_vm_project::{Chunk, OpCode, opcode_to_u8};
-use rust_vm_project::{VirtualMachine, Value};
+use rust_vm_project::{VirtualMachine};
 use rust_vm_project::{InterpretResult};
+use std::env;
+use std::fs;
 
 fn main() {
 
@@ -67,6 +69,20 @@ fn main() {
             println!("Top of stack (expected -2 if Value=i64) = {}", top);
         }
     }
+
+
+
+    if let Some(flag) = env::args().nth(1) {
+    if flag == "--scan" {
+        let path = env::args()
+            .nth(2)
+            .expect("Usage: cargo run -- --scan <file.lox>");
+        let source = fs::read_to_string(&path).expect("Failed to read source file");
+        let mut vm = VirtualMachine::init_machine();
+        let result = vm.interpret_source(&source);
+        println!("Interpret result: {:?}", result);
+        }
+    }
 }
     
 
@@ -104,4 +120,3 @@ fn main() {
     //println!("Final stack: {:?}", vm.stack);
 
 //}
-
