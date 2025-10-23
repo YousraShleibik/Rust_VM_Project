@@ -4,12 +4,11 @@ use rust_vm_project::{InterpretResult};
 
 fn main() {
 
-    println!("Hello, world!");
-
     println!("creating a bytecode chunk");
     let mut chunk = Chunk::init_chunk();
     let l = 1;
 
+    // push 15, 42; add => 57
     let c15 = chunk.add_constant(15);
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
     chunk.write_to_chunk(c15, l);
@@ -18,25 +17,54 @@ fn main() {
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
     chunk.write_to_chunk(c42, l);
 
-    chunk.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l); // 15 + 42
-     chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
 
-    // Disassemble & run
+    // *2
+    let c2 = chunk.add_constant(2);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
+    chunk.write_to_chunk(c2, l);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpMultiply), l);
+
+    // -5
+    let c5 = chunk.add_constant(5);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
+    chunk.write_to_chunk(c5, l);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpSubtract), l);
+
+    // /4
+    let c4 = chunk.add_constant(4);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
+    chunk.write_to_chunk(c4, l);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpDivide), l);
+
+    // %5, negate, return
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
+    chunk.write_to_chunk(c5, l); // reuse 5
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpModulo), l);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpNegate), l);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+    // Disassemble for visibility
     chunk.disassemble("demo chunk");
 
+    // VM initial state
     let mut vm = VirtualMachine::init_machine();
-    println!("chunk: {:?}", vm.chunk); 
-    println!("ip: {}", vm.ip);         
-    println!("stack: {:?}", vm.stack); 
+    println!("chunk: {:?}", vm.chunk); // None
+    println!("ip: {}", vm.ip);         // 0
+    println!("stack: {:?}", vm.stack); // []
 
+    // Run
     let result = vm.interpret(chunk);
     println!("Interpret result: {:?}", result);
-    println!("chunk: {:?}", vm.chunk); 
+
+    // VM state after run
+    println!("chunk: {:?}", vm.chunk); // Some(Chunk { ... })
     println!("ip: {}", vm.ip);
     println!("stack: {:?}", vm.stack);
+
     if result == InterpretResult::InterpretSuccess {
         if let Some(top) = vm.stack.last() {
-            println!("Top of stack (expected -2) = {}", top);
+            println!("Top of stack (expected -2 if Value=i64) = {}", top);
         }
     }
 }
