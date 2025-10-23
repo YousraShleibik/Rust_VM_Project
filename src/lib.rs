@@ -1,6 +1,6 @@
 pub mod scanner;
 pub use scanner::{Scanner, Token, TokenType};
-pub type Value = u8;
+pub type Value = i64;
 
 //operation codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
