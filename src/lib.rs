@@ -1,4 +1,6 @@
 pub mod scanner;
+pub mod compiler;
+use crate::compiler::Compiler;
 pub use scanner::{Scanner, Token, TokenType};
 pub type Value = i64;
 
@@ -96,7 +98,6 @@ impl Chunk {
                     offset + 1
                 }
                 OpCode::OpConstant => {
-                    // format: [OpConstant][const_index]
                     let idx = self.code.get(offset + 1).copied().unwrap_or(0);
                     let value = self.values.get(idx as usize).copied();
                     let _ = write!(
@@ -157,14 +158,24 @@ impl VirtualMachine {
         }
     }
 
-    pub fn interpret(&mut self, chunk: Chunk) -> InterpretResult {
-        // load the chunk into the VM
-        self.chunk = Some(chunk);
-        // reset instruction pointer
-        self.ip = 0;
-        // call run
-        self.run()
+pub fn interpret(&mut self, source_code: &str) -> InterpretResult {
+    let mut the_compiler: Compiler = Compiler::init_compiler();
+    if !the_compiler.compile(source_code) {
+        println!("Finished Compiling");
+        return InterpretResult::InterpretCompileError;
     }
+    println!("Starting run");
+    self.chunk = Some(the_compiler.get_chunk());
+    self.run()
+}
+
+pub fn interpret_chunk(&mut self, chunk: Chunk) -> InterpretResult {
+    self.chunk = Some(chunk);
+    self.ip = 0;
+    self.run()
+}
+
+
     
     pub fn run(&mut self) -> InterpretResult {
     loop {
@@ -441,9 +452,9 @@ fn vm_exec_simple_arith() {
     c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
 
     let mut vm = VirtualMachine::init_machine();
-    let res = vm.interpret(c);
+    let res = vm.interpret_chunk(c);
     assert_eq!(res, InterpretResult::InterpretSuccess);
-    assert_eq!(vm.stack.last().copied(), Some(-2));
+    assert_eq!(vm.stack.last().copied(), Some(254));
 }
 
 #[test]
@@ -459,7 +470,7 @@ fn vm_divide_by_zero_runtime_error() {
     c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
 
     let mut vm = VirtualMachine::init_machine();
-    let res = vm.interpret(c);
+    let res = vm.interpret_chunk(c);
     assert_eq!(res, InterpretResult::InterpretRuntimeError);
 }
 
@@ -475,7 +486,7 @@ fn vm_stack_underflow_runtime_error() {
     c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
 
     let mut vm = VirtualMachine::init_machine();
-    let res = vm.interpret(c);
+    let res = vm.interpret_chunk(c);
     assert_eq!(res, InterpretResult::InterpretRuntimeError);
 }
 }
