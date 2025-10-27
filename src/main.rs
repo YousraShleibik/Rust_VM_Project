@@ -31,7 +31,7 @@ fn main() {
     println!("ip: {}", vm.ip);         
     println!("stack: {:?}", vm.stack); 
 
-    let result = vm.interpret(chunk);
+    let result = vm.interpret_chunk(chunk);
     println!("Interpret result: {:?}", result);
     println!("chunk: {:?}", vm.chunk); 
     println!("ip: {}", vm.ip);
@@ -42,6 +42,36 @@ fn main() {
         }
     }
 
+// compiler/parser demos 
+if let Some(flag) = env::args().nth(1) {
+    if flag == "--compile" {
+        // Usage: cargo run -- --compile "1+2*3"
+        let expr = env::args()
+            .nth(2)
+            .expect("Usage: cargo run -- --compile \"<expr>\"");
+        let mut vm = VirtualMachine::init_machine();
+        let result = vm.interpret(&expr);
+        println!("Interpret result: {:?}", result);
+        if let Some(c) = &vm.chunk {
+            c.disassemble("compiled (expr)");
+        }
+        println!("Final stack: {:?}", vm.stack);
+        return; 
+    } else if flag == "--compile-file" {
+        let path = env::args()
+            .nth(2)
+            .expect("Usage: cargo run -- --compile-file <file.lox>");
+        let source = std::fs::read_to_string(&path).expect("Failed to read source file");
+        let mut vm = VirtualMachine::init_machine();
+        let result = vm.interpret(&source);
+        println!("Interpret result: {:?}", result);
+        if let Some(c) = &vm.chunk {
+            c.disassemble("compiled (file)");
+        }
+        println!("Final stack: {:?}", vm.stack);
+        return; 
+    }
+}
 
 
     if let Some(flag) = env::args().nth(1) {
@@ -55,6 +85,9 @@ fn main() {
         println!("Interpret result: {:?}", result);
         }
     }
+
+
+
 }
     
 
