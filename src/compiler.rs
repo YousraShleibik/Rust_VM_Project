@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-
+use crate::Number;
 use std::collections::HashMap;
 
 use crate::{
@@ -82,7 +82,6 @@ impl Parser {
     }
 
     pub fn get_rule(&self, t: TokenType) -> ParseRule {
-        // Every TokenType must be present in the table.
         *self.parse_rules.get(&t).expect("missing Pratt rule for token")
     }
 
@@ -109,14 +108,14 @@ impl Parser {
         m.insert(TokenType::TokenSlash,       ParseRule::init_parse_rule(none(),                 inf(Compiler::binary), Precedence::PrecFactor));
         m.insert(TokenType::TokenStar,        ParseRule::init_parse_rule(none(),                 inf(Compiler::binary), Precedence::PrecFactor));
 
-        m.insert(TokenType::TokenNot,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenNotEqual,    ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
+        m.insert(TokenType::TokenNot,         ParseRule::init_parse_rule(pre(Compiler::unary), none(), Precedence::PrecNone));
+        m.insert(TokenType::TokenNotEqual,    ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecEquality));
         m.insert(TokenType::TokenEqual,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenEqualEqual,  ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenGreater,     ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenGreaterEqual,ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenLess,        ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenLessEqual,   ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
+        m.insert(TokenType::TokenEqualEqual,  ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecEquality));
+        m.insert(TokenType::TokenGreater,      ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecComparison));
+        m.insert(TokenType::TokenGreaterEqual, ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecComparison));
+        m.insert(TokenType::TokenLess,         ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecComparison));
+        m.insert(TokenType::TokenLessEqual,    ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecComparison));
 
         m.insert(TokenType::TokenIdentifier,  ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenString,      ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
@@ -125,17 +124,17 @@ impl Parser {
         m.insert(TokenType::TokenAnd,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenClass,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenElse,        ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenFalse,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
+        m.insert(TokenType::TokenFalse, ParseRule::init_parse_rule(pre(Compiler::literal), none(), Precedence::PrecNone));
         m.insert(TokenType::TokenFor,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenFun,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenIf,          ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenNil,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
+        m.insert(TokenType::TokenNil,   ParseRule::init_parse_rule(pre(Compiler::literal), none(), Precedence::PrecNone));
         m.insert(TokenType::TokenOr,          ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenPrint,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenReturn,      ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenSuper,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenThis,        ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenTrue,        ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
+        m.insert(TokenType::TokenTrue,  ParseRule::init_parse_rule(pre(Compiler::literal), none(), Precedence::PrecNone));
         m.insert(TokenType::TokenVar,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenWhile,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenError,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
@@ -204,19 +203,41 @@ impl Compiler {
     fn binary(&mut self) {
         let operator_type = self.parser.previous.token_type;
 
-        // Compute the precedence and parse the RHS with one level higher.
+        // parse right operand at higher precedence
         let rule = self.parser.get_rule(operator_type);
         let higher = rule.precedence.next();
         self.parse_precedence(higher);
 
         match operator_type {
-            TokenType::TokenPlus  => self.emit_byte(opcode_to_u8(OpCode::OpAdd)),
-            TokenType::TokenMinus => self.emit_byte(opcode_to_u8(OpCode::OpSubtract)),
-            TokenType::TokenStar  => self.emit_byte(opcode_to_u8(OpCode::OpMultiply)),
-            TokenType::TokenSlash => self.emit_byte(opcode_to_u8(OpCode::OpDivide)),
-            _ => {} 
+            // arithmetic
+            TokenType::TokenPlus    => self.emit_byte(opcode_to_u8(OpCode::OpAdd)),
+            TokenType::TokenMinus   => self.emit_byte(opcode_to_u8(OpCode::OpSubtract)),
+            TokenType::TokenStar    => self.emit_byte(opcode_to_u8(OpCode::OpMultiply)),
+            TokenType::TokenSlash   => self.emit_byte(opcode_to_u8(OpCode::OpDivide)),
+
+            // equality
+            TokenType::TokenEqualEqual => self.emit_byte(opcode_to_u8(OpCode::OpEqual)),
+            TokenType::TokenNotEqual   => {
+                self.emit_byte(opcode_to_u8(OpCode::OpEqual));
+                self.emit_byte(opcode_to_u8(OpCode::OpNot));
+            }
+
+            // comparisons
+            TokenType::TokenGreater => self.emit_byte(opcode_to_u8(OpCode::OpGreater)),
+            TokenType::TokenLess    => self.emit_byte(opcode_to_u8(OpCode::OpLess)),
+            TokenType::TokenGreaterEqual => {
+                self.emit_byte(opcode_to_u8(OpCode::OpLess));
+                self.emit_byte(opcode_to_u8(OpCode::OpNot));
+            }
+            TokenType::TokenLessEqual => {
+                self.emit_byte(opcode_to_u8(OpCode::OpGreater));
+                self.emit_byte(opcode_to_u8(OpCode::OpNot));
+            }
+
+            _ => {}
         }
     }
+
 
     fn consume(&mut self, ttype: TokenType, message: &str) {
         if self.parser.current.token_type == ttype {
@@ -234,11 +255,12 @@ impl Compiler {
     fn unary(&mut self) {
         let operator_type = self.parser.previous.token_type;
 
-        // Compile the operand.
+        // compile operand
         self.parse_precedence(Precedence::PrecUnary);
 
         match operator_type {
             TokenType::TokenMinus => self.emit_byte(opcode_to_u8(OpCode::OpNegate)),
+            TokenType::TokenNot   => self.emit_byte(opcode_to_u8(OpCode::OpNot)),
             _ => {}
         }
     }
@@ -246,17 +268,20 @@ impl Compiler {
     fn number(&mut self) {
         let lexeme = match String::from_utf8(self.parser.previous.value.clone()) {
             Ok(s) => s,
-            Err(_) => {
-                self.error("Invalid UTF-8 in numeric literal.");
-                return;
-            }
+            Err(_) => { self.error("Invalid UTF-8 in numeric literal."); return; }
         };
-
-        match lexeme.parse::<Value>() {
-            Ok(v) => {
-                self.emit_constant(v);
-            }
+        match lexeme.parse::<Number>() {
+            Ok(n) => self.emit_constant(Value::ValNumber(n)),
             Err(_) => self.error("Invalid integer literal."),
+        }
+    }
+
+    fn literal(&mut self) {
+    match self.parser.previous.token_type {
+        TokenType::TokenNil   => self.emit_byte(opcode_to_u8(OpCode::OpNil)),
+        TokenType::TokenTrue  => self.emit_byte(opcode_to_u8(OpCode::OpTrue)),
+        TokenType::TokenFalse => self.emit_byte(opcode_to_u8(OpCode::OpFalse)),
+        _ => self.error("Unexpected literal."),
         }
     }
 
