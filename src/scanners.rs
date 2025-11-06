@@ -2,7 +2,8 @@
 
 use std::str;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+
 pub enum TokenType {
     TokenLeftParen, TokenRightParen,
     TokenLeftBrace, TokenRightBrace,
