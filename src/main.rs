@@ -23,19 +23,19 @@ fn main() {
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
 
     // *2
-    let c2 = chunk.add_constant(2);
+    let c2 = chunk.add_constant(Value::ValNumber(2));
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
     chunk.write_to_chunk(c2, l);
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpMultiply), l);
 
     // -5
-    let c5 = chunk.add_constant(5);
+    let c5 = chunk.add_constant(Value::ValNumber(-5));
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
     chunk.write_to_chunk(c5, l);
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpSubtract), l);
 
     // /4
-    let c4 = chunk.add_constant(4);
+    let c4 = chunk.add_constant(Value::ValNumber(4));
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);
     chunk.write_to_chunk(c4, l);
     chunk.write_to_chunk(opcode_to_u8(OpCode::OpDivide), l);
