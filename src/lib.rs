@@ -292,18 +292,46 @@ fn print_value(v: &Value) {
 }
 
 
+    //pub fn interpret(&mut self, source_code: &str) -> InterpretResult {
     
+  //  let mut the_compiler: Compiler = Compiler::init_compiler();
+   // if !the_compiler.compile(source_code) {
+   //     println!("Finished Compiling");
+   //     return InterpretResult::InterpretCompileError;
+   // }
+    //println!("Starting run");
+    //self.chunk = Some(the_compiler.get_chunk());
+    //self.run()
+//}
+
 
 pub fn interpret(&mut self, source_code: &str) -> InterpretResult {
-    let mut the_compiler: Compiler = Compiler::init_compiler();
-    if !the_compiler.compile(source_code) {
-        println!("Finished Compiling");
+    let src = source_code.trim();
+
+    // If it looks like a bare expression (no ';', not starting with 'print'/'var'),
+    // compile in expression-only mode so the value stays on the stack.
+    let looks_like_expr =
+        !src.contains(';') &&
+        !src.starts_with("print") &&
+        !src.starts_with("var");
+
+    let mut compiler = Compiler::init_compiler();
+    let ok = if looks_like_expr {
+        compiler.compile_expr_program(src)
+    } else {
+        compiler.compile(src)
+    };
+
+    if !ok {
         return InterpretResult::InterpretCompileError;
     }
-    println!("Starting run");
-    self.chunk = Some(the_compiler.get_chunk());
+
+    self.chunk = Some(compiler.get_chunk());
+    self.ip = 0;
     self.run()
 }
+
+
 
 pub fn interpret_chunk(&mut self, chunk: Chunk) -> InterpretResult {
     self.chunk = Some(chunk);
@@ -543,9 +571,29 @@ Some(OpCode::OpGetGlobal) => {
     }
 
     pub fn interpret_source(&mut self, source_code: &str) -> InterpretResult { 
-    self.compile(source_code);                                             
-    InterpretResult::InterpretSuccess                                      
+    //self.compile(source_code);                                             
+    //InterpretResult::InterpretSuccess  
+             let src = source_code.trim();
+
+        let looks_like_expr =
+            !src.contains(';') &&
+            !src.starts_with("print") &&
+            !src.starts_with("var");
+
+        let mut compiler = Compiler::init_compiler();
+        let ok = if looks_like_expr {
+            compiler.compile_expr_program(src)
+        } else {
+            compiler.compile(src)
+        };
+
+        if !ok { return InterpretResult::InterpretCompileError; }
+
+        self.chunk = Some(compiler.get_chunk());
+        self.ip = 0;
+        self.run()
     }
+
     
     pub fn compile(&mut self, source_code: &str) {         
     use crate::{Scanner, TokenType};                   
@@ -890,5 +938,11 @@ fn vm_stack_underflow_runtime_error() {
         assert!(vm.stack.is_empty());
     }
 
-
+#[test]
+fn expr_only_smoke() {
+    let mut vm = VirtualMachine::init_machine();
+    let res = vm.interpret_source("1+2*3");  // no semicolon
+    assert_eq!(res, InterpretResult::InterpretSuccess);
+    assert_eq!(vm.stack.last(), Some(&Value::ValNumber(7)));
+}
 }

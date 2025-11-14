@@ -117,9 +117,9 @@ impl Parser {
         m.insert(TokenType::TokenLess,         ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecComparison));
         m.insert(TokenType::TokenLessEqual,    ParseRule::init_parse_rule(none(), inf(Compiler::binary), Precedence::PrecComparison));
 
-        m.insert(TokenType::TokenIdentifier,  ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
+        m.insert(TokenType::TokenIdentifier, ParseRule::init_parse_rule(pre(Compiler::variable_prefix), none(), Precedence::PrecNone));
         m.insert(TokenType::TokenString,      ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
-        m.insert(TokenType::TokenNumber,      ParseRule::init_parse_rule(pre(Compiler::number),  none(),               Precedence::PrecFactor));
+        m.insert(TokenType::TokenNumber,      ParseRule::init_parse_rule(pre(Compiler::number),  none(), Precedence::PrecFactor));
 
         m.insert(TokenType::TokenAnd,         ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
         m.insert(TokenType::TokenClass,       ParseRule::init_parse_rule(none(), none(), Precedence::PrecFactor));
@@ -159,13 +159,35 @@ impl Compiler {
             parser: Parser::init_parser(),
         }
     }
+    // Compile a single expression program (no semicolons, no statements).
+    // Leaves the value on the stack (no OP_POP).
+    pub fn compile_expr_program(&mut self, source_code: &str) -> bool {
+    self.scanner = Scanner::init_scanner(source_code);
+    self.parser.had_error = false;
+    self.parser.panic_mode = false;
+
+    // Parse exactly one expression, then EOF
+    self.advance();
+    self.expression();
+    self.consume(TokenType::TokenEof, "Expect end of expression.");
+
+    self.end_compiler();
+    !self.parser.had_error
+    }
 
     /// Move the compiled chunk out 
     pub fn get_chunk(self) -> Chunk {
         self.chunk
     }
 
+
+
     
+     fn variable_prefix(&mut self) {
+    // at expression prefix position we are not doing assignment parsing here
+    self.variable(false);
+ }
+
     /// Compile a Lox source string to bytecode; returns success/failure.
     pub fn compile(&mut self, source_code: &str) -> bool {
         self.scanner = Scanner::init_scanner(source_code);
