@@ -19,7 +19,7 @@ fn eval_ok(program: &str) -> Number {
         result
     );
 
-    match stack.last().copied() {
+    match stack.last().cloned() {
         Some(Value::ValNumber(n)) => n,
         other => panic!("Expected numeric result on stack, got {:?} for program `{}`", other, program),
     }

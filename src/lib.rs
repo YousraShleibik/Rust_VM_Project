@@ -3,13 +3,19 @@ pub mod compiler;
 use crate::compiler::Compiler;
 pub use scanner::{Scanner, Token, TokenType};
 pub type Number = i16;
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Value {
     ValBool(bool),
     ValNumber(Number),
     ValNil,
+    ValString(String),
 }
+
+
+
+
 //operation codes
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OpCode {
@@ -28,6 +34,10 @@ pub enum OpCode {
     OpEqual,
     OpGreater,
     OpLess,
+    OpPrint,        // statement print
+    OpPop,          // expression statements
+    OpDefineGlobal, // var x = ...
+    OpGetGlobal,    // use x
 
 }
 
@@ -49,6 +59,10 @@ pub fn opcode_to_u8(op: OpCode) -> u8 {
         OpCode::OpEqual     => 0x0C,
         OpCode::OpGreater   => 0x0D,
         OpCode::OpLess      => 0x0E,
+        OpCode::OpPrint        => 0x0F,
+        OpCode::OpPop          => 0x10,
+        OpCode::OpDefineGlobal => 0x11,
+        OpCode::OpGetGlobal    => 0x12,
 
     }
 }
@@ -71,6 +85,10 @@ pub fn u8_to_opcode(b: u8) -> Option<OpCode> {
         0x0C => OpCode::OpEqual,
         0x0D => OpCode::OpGreater,
         0x0E => OpCode::OpLess,
+        0x0F => OpCode::OpPrint,
+        0x10 => OpCode::OpPop,
+        0x11 => OpCode::OpDefineGlobal,
+        0x12 => OpCode::OpGetGlobal,
         _ => return None,
     })
 }
@@ -89,6 +107,7 @@ impl Chunk {
         Value::ValBool(b)   => format!("{}", b),
         Value::ValNumber(n) => format!("{}", n),
         Value::ValNil       => "nil".to_string(),
+        Value::ValString(s)  => s.clone(),
     }
     }
     pub fn init_chunk() -> Self {
@@ -196,7 +215,46 @@ impl Chunk {
                      let _ = write!(out, "{offset:04}  line {:>4}  OpLess",  line); 
                 offset + 1 
                 }
+                OpCode::OpPrint    => {
+                     let _ = write!(out, "{offset:04}  line {:>4}  OpPrint",  line);
+                     offset + 1
+                }
+                OpCode::OpPop      => {
+                     let _ = write!(out, "{offset:04}  line {:>4}  OpPop",    line);
+                     offset + 1
+                }
+                OpCode::OpDefineGlobal => {
+                // one-byte operand: constant index for variable name
+                let idx = self.code.get(offset + 1).copied().unwrap_or(0);
+                let shown = self
+                    .values
+                    .get(idx as usize)
+                    .map(Chunk::fmt_value)
+                    .unwrap_or_else(|| "?".into());
+                let _ = write!(
+                    out,
+                    "{offset:04}  line {:>4}  {:<12} idx={:<3} name={}",
+                    line, "OpDefineGlobal", idx, shown
+                );
+                offset + 2
+                }   
+                OpCode::OpGetGlobal    => {
+                                    // one-byte operand: constant index for variable name
+                let idx = self.code.get(offset + 1).copied().unwrap_or(0);
+                let shown = self
+                    .values
+                    .get(idx as usize)
+                    .map(Chunk::fmt_value)
+                    .unwrap_or_else(|| "?".into());
+                let _ = write!(
+                    out,
+                    "{offset:04}  line {:>4}  {:<12} idx={:<3} name={}",
+                    line, "OpGetGlobal", idx, shown
+                );
+                offset + 2
             }
+                }
+            
         } else {
             let _ = write!(out, "{offset:04}  line {:>4}  {:<12} 0x{:02X} (unknown)", line, "????", byte);
             offset + 1
@@ -211,6 +269,7 @@ pub struct VirtualMachine {
     pub chunk: Option<Chunk>,
     pub ip: usize,
     pub stack: Vec<Value>,
+    pub globals: HashMap<String, Value>,
 }
 
 impl VirtualMachine {
@@ -219,8 +278,21 @@ impl VirtualMachine {
             chunk: None,
             ip: 0,
             stack: Vec::new(),
+            globals: HashMap::new(),
         }
     }
+    
+fn print_value(v: &Value) {
+    match v {
+        Value::ValNil         => println!("nil"),
+        Value::ValBool(b)     => println!("{}", if *b { "true" } else { "false" }),
+        Value::ValNumber(n)   => println!("{}", n),
+        Value::ValString(s)   => println!("{}", s),
+    }
+}
+
+
+    
 
 pub fn interpret(&mut self, source_code: &str) -> InterpretResult {
     let mut the_compiler: Compiler = Compiler::init_compiler();
@@ -261,7 +333,7 @@ pub fn interpret_chunk(&mut self, chunk: Chunk) -> InterpretResult {
             Some(OpCode::OpConstant) => {
                 let idx = chunk.code.get(self.ip).copied().unwrap_or(0) as usize;
                 self.ip += 1;
-                if let Some(v) = chunk.values.get(idx).copied() {
+                if let Some(v) = chunk.values.get(idx).cloned() {
                     self.push(v);
                 } else {
                     self.runtime_error("Bad constant index.");
@@ -334,6 +406,68 @@ pub fn interpret_chunk(&mut self, chunk: Chunk) -> InterpretResult {
             Some(OpCode::OpLess)    => {
                 if self.binary_op_cmp(|a,b| a < b).is_err() { return InterpretResult::InterpretRuntimeError; }
             }
+            //part 6
+            Some(OpCode::OpPrint) => {
+    let v = match self.pop() {
+        Some(v) => v,
+        None => { self.runtime_error("OP_PRINT: stack underflow."); return InterpretResult::InterpretRuntimeError; }
+    };
+    Self::print_value(&v); // you’ll add this helper in step 2
+}
+
+Some(OpCode::OpPop) => {
+    if self.pop().is_none() {
+        self.runtime_error("OP_POP: stack underflow.");
+        return InterpretResult::InterpretRuntimeError;
+    }
+}
+
+Some(OpCode::OpDefineGlobal) => {
+    // operand: constant index for variable name
+    let name_idx = *chunk.code.get(self.ip).unwrap_or(&0) as usize;
+    self.ip += 1;
+
+    let name_val = match chunk.values.get(name_idx).cloned() {
+        Some(v) => v,
+        None => { self.runtime_error("OP_DEFINE_GLOBAL: bad name constant index."); return InterpretResult::InterpretRuntimeError; }
+    };
+
+    let var_name = match name_val {
+        Value::ValString(s) => s,
+        _ => { self.runtime_error("OP_DEFINE_GLOBAL: constant is not a string."); return InterpretResult::InterpretRuntimeError; }
+    };
+
+    let val = match self.pop() {
+        Some(v) => v,
+        None => { self.runtime_error("OP_DEFINE_GLOBAL: stack underflow (no initializer)."); return InterpretResult::InterpretRuntimeError; }
+    };
+
+    self.globals.insert(var_name, val);
+}
+
+Some(OpCode::OpGetGlobal) => {
+    let name_idx = *chunk.code.get(self.ip).unwrap_or(&0) as usize;
+    self.ip += 1;
+
+    let name_val = match chunk.values.get(name_idx).cloned() {
+        Some(v) => v,
+        None => { self.runtime_error("OP_GET_GLOBAL: bad name constant index."); return InterpretResult::InterpretRuntimeError; }
+    };
+
+    let var_name = match name_val {
+        Value::ValString(s) => s,
+        _ => { self.runtime_error("OP_GET_GLOBAL: constant is not a string."); return InterpretResult::InterpretRuntimeError; }
+    };
+
+    if let Some(v) = self.globals.get(&var_name).cloned() {
+        self.push(v);
+    } else {
+        self.runtime_error(&format!("Undefined variable '{}'.", var_name));
+        return InterpretResult::InterpretRuntimeError;
+    }
+}
+
+            
             None => return InterpretResult::InterpretRuntimeError,
         }
     }
@@ -442,7 +576,8 @@ pub fn interpret_chunk(&mut self, chunk: Chunk) -> InterpretResult {
         
 }
 
-#[derive(Debug, PartialEq)]
+//#[derive(Debug, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InterpretResult {
     InterpretSuccess,
     InterpretCompileError,
@@ -467,6 +602,19 @@ mod tests {
             (OpCode::OpMultiply, 0x05),
             (OpCode::OpDivide,   0x06),
             (OpCode::OpModulo,   0x07),
+            (OpCode::OpNil,      0x08),
+            (OpCode::OpTrue,     0x09),
+            (OpCode::OpFalse,    0x0A),
+            (OpCode::OpNot,      0x0B),
+            (OpCode::OpEqual,    0x0C),
+            (OpCode::OpGreater,  0x0D),
+            (OpCode::OpLess,     0x0E),
+            (OpCode::OpPrint,    0x0F),
+            (OpCode::OpPop,      0x10),
+            (OpCode::OpDefineGlobal, 0x11),
+            (OpCode::OpGetGlobal,    0x12),
+    
+            
         ];
 
         for (op, byte) in table {
@@ -580,7 +728,7 @@ fn vm_exec_simple_arith() {
     let mut vm = VirtualMachine::init_machine();
     let res = vm.interpret_chunk(c);
     assert_eq!(res, InterpretResult::InterpretSuccess);
-    assert_eq!(vm.stack.last().copied(), Some(Value::ValNumber(-2)));
+    assert_eq!(vm.stack.last().cloned(), Some(Value::ValNumber(-2)));
 }
 
 
@@ -617,5 +765,130 @@ fn vm_stack_underflow_runtime_error() {
     let res = vm.interpret_chunk(c);
     assert_eq!(res, InterpretResult::InterpretRuntimeError);
 }
+
+    // ======== Part 6: statements, print, globals ========
+
+    // Helper: run a chunk to completion
+    fn run_chunk(c: Chunk) -> (VirtualMachine, InterpretResult) {
+        let mut vm = VirtualMachine::init_machine();
+        let res = vm.interpret_chunk(c);
+        (vm, res)
+    }
+
+    #[test]
+    fn stmt_print_and_expr_stmt_pop() {
+        // bytecode for: print 3+3;  3+3;   (second is expression statement)
+        let mut c = Chunk::init_chunk();
+        let l = 1;
+
+        let three = c.add_constant(Value::ValNumber(3));
+
+        // print 3 + 3;
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(three, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(three, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPrint), l);
+
+        // 3 + 3;  (should be popped by OP_POP)
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(three, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(three, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPop), l);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+        let (vm, res) = run_chunk(c);
+        assert_eq!(res, InterpretResult::InterpretSuccess);
+        assert!(vm.stack.is_empty(), "stack should be empty after print and expr stmt");
+    }
+
+    #[test]
+    fn globals_define_and_get() {
+        // bytecode for: var x = 10; print x + 5;
+        let mut c = Chunk::init_chunk();
+        let l = 1;
+
+        let name_x = c.add_constant(Value::ValString("x".into()));
+        let ten    = c.add_constant(Value::ValNumber(10));
+        let five   = c.add_constant(Value::ValNumber(5));
+
+        // var x = 10;
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);      c.write_to_chunk(ten, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpDefineGlobal), l);  c.write_to_chunk(name_x, l);
+
+        // print x + 5;
+        c.write_to_chunk(opcode_to_u8(OpCode::OpGetGlobal), l);     c.write_to_chunk(name_x, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l);      c.write_to_chunk(five, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPrint), l);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+        let (vm, res) = run_chunk(c);
+        assert_eq!(res, InterpretResult::InterpretSuccess);
+        assert!(vm.stack.is_empty(), "print should consume the value");
+    }
+
+    #[test]
+    fn get_undefined_global_is_runtime_error() {
+        // bytecode for: print nope;   // 'nope' was never defined
+        let mut c = Chunk::init_chunk();
+        let l = 1;
+
+        let name = c.add_constant(Value::ValString("nope".into()));
+        c.write_to_chunk(opcode_to_u8(OpCode::OpGetGlobal), l); c.write_to_chunk(name, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPrint), l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+        let (_vm, res) = run_chunk(c);
+        assert_eq!(res, InterpretResult::InterpretRuntimeError);
+    }
+
+    #[test]
+    fn op_pop_discards_top_value() {
+        let mut c = Chunk::init_chunk();
+        let l = 1;
+        let forty_two = c.add_constant(Value::ValNumber(42));
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(forty_two, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPop), l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+        let (vm, res) = run_chunk(c);
+        assert_eq!(res, InterpretResult::InterpretSuccess);
+        assert!(vm.stack.is_empty());
+    }
+
+    #[test]
+    fn multiple_statements_finish_with_empty_stack() {
+        // print 1; 2+3; print 4;
+        let mut c = Chunk::init_chunk();
+        let l = 1;
+        let one   = c.add_constant(Value::ValNumber(1));
+        let two   = c.add_constant(Value::ValNumber(2));
+        let three = c.add_constant(Value::ValNumber(3));
+        let four  = c.add_constant(Value::ValNumber(4));
+
+        // print 1;
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(one, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPrint), l);
+
+        // 2 + 3;  (expr stmt → OP_POP)
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(two, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(three, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpAdd), l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPop), l);
+
+        // print 4;
+        c.write_to_chunk(opcode_to_u8(OpCode::OpConstant), l); c.write_to_chunk(four, l);
+        c.write_to_chunk(opcode_to_u8(OpCode::OpPrint), l);
+
+        c.write_to_chunk(opcode_to_u8(OpCode::OpReturn), l);
+
+        let (vm, res) = run_chunk(c);
+        assert_eq!(res, InterpretResult::InterpretSuccess);
+        assert!(vm.stack.is_empty());
+    }
+
 
 }

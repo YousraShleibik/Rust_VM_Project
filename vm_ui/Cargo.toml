@@ -1,0 +1,12 @@
+[package]
+name = "vm_ui"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ratatui = "0.28"
+crossterm = "0.28"
+anyhow = "1"
+
+# Depend on your existing root crate
+rust_vm_project = { path = ".." }

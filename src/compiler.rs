@@ -165,15 +165,19 @@ impl Compiler {
         self.chunk
     }
 
+    
     /// Compile a Lox source string to bytecode; returns success/failure.
     pub fn compile(&mut self, source_code: &str) -> bool {
         self.scanner = Scanner::init_scanner(source_code);
 
         self.advance();
 
-        self.expression();
+        //self.expression();
 
-        self.consume(TokenType::TokenEof, "Expect end of expression.");
+        //self.consume(TokenType::TokenEof, "Expect end of expression.");
+            while !self.match_tokentype(TokenType::TokenEof) {
+        self.declaration();
+    }
 
         self.end_compiler();
 
@@ -366,4 +370,124 @@ impl Compiler {
         println!(": {}\n", message);
         self.parser.had_error = true;
     }
+
+//----part6----
+    fn check(&self, t: TokenType) -> bool {
+    self.parser.current.token_type == t
+}
+fn match_tokentype(&mut self, t: TokenType) -> bool {
+    if !self.check(t) { return false; }
+    self.advance();
+    true
+}
+
+//Declarations
+fn declaration(&mut self) {
+    if self.match_tokentype(TokenType::TokenVar) {
+        self.var_declaration();
+    } else {
+        self.statement();
+    }
+
+    if self.parser.panic_mode {
+        self.synchronize();
+    }
+}
+
+fn statement(&mut self) {
+    if self.match_tokentype(TokenType::TokenPrint) {
+        self.print_statement();
+    } else {
+        self.expression_statement();
+    }
+}
+
+fn print_statement(&mut self) {
+    self.expression();
+    self.consume(TokenType::TokenSemicolon, "Expect ';' after value.");
+    self.emit_byte(opcode_to_u8(OpCode::OpPrint));
+}
+
+fn expression_statement(&mut self) {
+    self.expression();
+    self.consume(TokenType::TokenSemicolon, "Expect ';' after expression.");
+    self.emit_byte(opcode_to_u8(OpCode::OpPop));
+}
+
+//Error recovery
+fn synchronize(&mut self) {
+    self.parser.panic_mode = false;
+    while self.parser.current.token_type != TokenType::TokenEof {
+        if self.parser.previous.token_type == TokenType::TokenSemicolon { return; }
+
+        match self.parser.current.token_type {
+            TokenType::TokenClass
+            | TokenType::TokenFun
+            | TokenType::TokenVar
+            | TokenType::TokenFor
+            | TokenType::TokenIf
+            | TokenType::TokenWhile
+            | TokenType::TokenPrint
+            | TokenType::TokenReturn => return,
+            _ => { /* fallthrough */ }
+        }
+        self.advance();
+    }
+}
+
+//Globals: declare
+fn var_declaration(&mut self) {
+    let global_index = self.parse_variable("Expect variable name.");
+    if self.match_tokentype(TokenType::TokenEqual) {
+        self.expression();
+    } else {
+        self.emit_byte(opcode_to_u8(OpCode::OpNil));
+    }
+    self.consume(TokenType::TokenSemicolon, "Expect ';' after variable declaration.");
+    self.define_variable(global_index);
+}
+
+fn parse_variable(&mut self, msg: &str) -> u8 {
+    self.consume(TokenType::TokenIdentifier, msg);
+    //self.identifier_constant(self.parser.previous)
+
+        
+    // clone so we don't hold a reference into self while using &mut self below
+    let prev = self.parser.previous.clone();
+    self.identifier_constant(prev)
+    
+}
+
+fn identifier_constant(&mut self, name_tok: Token) -> u8 {
+    // token.value is utf8 bytes → String → Value::ValString → constant index (u8)
+    //let s = String::from_utf8(name_tok.value.clone()).expect("identifier utf8");
+    //let idx = self.make_constant(Value::ValString(s));
+    //idx
+
+    let s = String::from_utf8(name_tok.value.clone()).unwrap_or_default();
+    self.make_constant(Value::ValString(s))
+
+
+}
+
+fn define_variable(&mut self, global_index: u8) {
+    self.emit_bytes(opcode_to_u8(OpCode::OpDefineGlobal), global_index);
+}
+
+
+//reading variable helper 
+fn variable(&mut self, _can_assign: bool) {
+    let name = self.parser.previous.clone();
+    self.named_variable(name);
+}
+
+fn named_variable(&mut self, name_tok: Token) {
+    let index = self.identifier_constant(name_tok);
+    self.emit_bytes(opcode_to_u8(OpCode::OpGetGlobal), index);
+}
+
+
+
+
+    
 }
