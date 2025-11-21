@@ -45,15 +45,17 @@ impl VmIntf for VirtualMachine {
     fn step(&mut self) -> InterpretResult {
         // Call your one-instruction function. If named differently,
         // change here (e.g., self.execute_one(), self.run_instruction(), etc.)
-        let _ = self.vm.run();
+        self.run()
+    
+    }
 
     fn reset_with(&mut self, chunk: Chunk) {
-    // assuming `self.vm` is your VirtualMachine
-       self.vm.chunk = Some(chunk);
-       self.vm.ip = 0;
-       self.vm.stack.clear();
-       self.vm.globals.clear();
+    self.chunk = Some(chunk);
+    self.ip = 0;
+    self.stack.clear();
+    self.globals.clear();
     }
+
 
 }
 
@@ -67,6 +69,7 @@ struct App<V: VmIntf> {
 impl<V: VmIntf> App<V> {
     fn new(vm: V) -> Self {
         Self { vm, running: false }
+        
     }
 }
 
