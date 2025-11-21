@@ -45,12 +45,16 @@ impl VmIntf for VirtualMachine {
     fn step(&mut self) -> InterpretResult {
         // Call your one-instruction function. If named differently,
         // change here (e.g., self.execute_one(), self.run_instruction(), etc.)
-        self.step_once()
-    }
+        let _ = self.vm.run();
 
     fn reset_with(&mut self, chunk: Chunk) {
-        self.reset_with(chunk)
+    // assuming `self.vm` is your VirtualMachine
+       self.vm.chunk = Some(chunk);
+       self.vm.ip = 0;
+       self.vm.stack.clear();
+       self.vm.globals.clear();
     }
+
 }
 
 // ---------- App state ----------
@@ -71,21 +75,23 @@ fn build_demo_chunk() -> Chunk {
     let mut chunk = Chunk::init_chunk();
 
     // Add constants (adjust Value variant name if needed)
-    let c0 = chunk.add_constant(Value::Number(1.5));
-    let c1 = chunk.add_constant(Value::Number(2.0));
+    // use integers that fit your Number = i16
+    let c0 = chunk.add_constant(Value::ValNumber(1));
+    let c1 = chunk.add_constant(Value::ValNumber(2));
+
 
     // OpConstant <idx>
-    chunk.write_chunk(opcode_to_u8(OpCode::OpConstant), 1);
-    chunk.write_chunk(c0 as u8, 1);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 1);
+    chunk.write_to_chunk(c0 as u8, 1);
 
-    chunk.write_chunk(opcode_to_u8(OpCode::OpConstant), 1);
-    chunk.write_chunk(c1 as u8, 1);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpConstant), 1);
+    chunk.write_to_chunk(c1 as u8, 1);
 
     // Add
-    chunk.write_chunk(opcode_to_u8(OpCode::OpAdd), 1);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpAdd), 1);
 
     // Return
-    chunk.write_chunk(opcode_to_u8(OpCode::OpReturn), 1);
+    chunk.write_to_chunk(opcode_to_u8(OpCode::OpReturn), 1);
 
     chunk
 }
@@ -179,7 +185,8 @@ fn draw_chunk<V: VmIntf>(f: &mut Frame, area: Rect, app: &App<V>) {
     //   impl Chunk {
     //       pub fn code(&self) -> &[u8] { &self.code }
     //   }
-    let bytes = app.vm.chunk().code();
+    //let bytes = app.vm.chunk().code();
+    let bytes: &[u8] = &[]; // placeholder, no bytecode view
 
     let mut lines: Vec<Line> = Vec::new();
     let mut i = 0usize;
