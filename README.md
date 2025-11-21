@@ -35,17 +35,20 @@ This project implements the backend of the Lox language, including:
 ```
 rust_vm_project/
 ├── src/
-│   ├── compiler.rs         # Parser + Compiler
-│   ├── scanner.rs          # Lexer / Tokenizer
-│   ├── chunk.rs            # Bytecode & constants
-│   ├── token.rs            # Token types
-│   ├── value.rs            # Lox Values
-│   ├── vm.rs               # Virtual Machine
-│   └── lib.rs              # Library root + unit tests
+│   ├── compiler.rs
+│   ├── scanner.rs
+│   ├── token.rs
+│   ├── vm.rs
+│   ├── value.rs
+│   ├── chunk.rs
+│   └── lib.rs
 ├── tests/
-│   └── expr_eval.rs        # Integration tests
+│   └── expr_eval.rs
+├── vm_ui/                 
+│   └── src/main.rs
 ├── Cargo.toml
 └── README.md
+
 ```
 
 ---
@@ -106,7 +109,11 @@ cargo test --lib
 ```bash
 cargo test --test expr_eval -- --nocapture
 ```
+### **Running the TUI (Text-based UI)**
 
+```bash
+cargo run -p vm_ui
+```
 ---
 
 ## 🧪 Example
